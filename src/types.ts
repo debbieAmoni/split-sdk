@@ -70,3 +70,13 @@ export interface RPCHealth {
   /** Timestamp when health was checked. */
   timestamp: number;
 }
+
+/** Contract upgrade event. */
+export interface UpgradeEvent {
+  /** Previous WASM hash. */
+  previousHash: string;
+  /** New WASM hash. */
+  newHash: string;
+  /** Timestamp when upgrade was detected. */
+  detectedAt: number;
+}

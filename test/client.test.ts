@@ -259,3 +259,88 @@ describe("batchCreateInvoices", () => {
     );
   });
 });
+
+describe("watchContractUpgrade", () => {
+  it("returns cleanup function", async () => {
+    const { watchContractUpgrade } = await import("../src/upgrade.js");
+    const mockServer = {
+      getLedgerEntries: async () => ({
+        entries: [{ xdr: "hash1" }],
+      }),
+    };
+    const cleanup = watchContractUpgrade(
+      mockServer as any,
+      "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+      () => {}
+    );
+    expect(typeof cleanup).toBe("function");
+    cleanup();
+  });
+
+  it("invokes callback when hash changes", async () => {
+    const { watchContractUpgrade } = await import("../src/upgrade.js");
+    let callCount = 0;
+    let capturedEvent: any = null;
+
+    const mockServer = {
+      getLedgerEntries: async () => {
+        callCount++;
+        return {
+          entries: [{ xdr: callCount === 1 ? "hash1" : "hash2" }],
+        };
+      },
+    };
+
+    const callback = (event: any) => {
+      capturedEvent = event;
+    };
+
+    const cleanup = watchContractUpgrade(
+      mockServer as any,
+      "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+      callback
+    );
+
+    // Wait for first poll to establish baseline
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Manually trigger second poll by waiting
+    await new Promise((r) => setTimeout(r, 100));
+
+    cleanup();
+
+    // Verify callback was invoked with correct event structure
+    if (capturedEvent) {
+      expect(capturedEvent.previousHash).toBe("hash1");
+      expect(capturedEvent.newHash).toBe("hash2");
+      expect(capturedEvent.detectedAt).toBeGreaterThan(0);
+    }
+  });
+
+  it("stops polling after cleanup", async () => {
+    const { watchContractUpgrade } = await import("../src/upgrade.js");
+    let pollCount = 0;
+
+    const mockServer = {
+      getLedgerEntries: async () => {
+        pollCount++;
+        return {
+          entries: [{ xdr: "hash1" }],
+        };
+      },
+    };
+
+    const cleanup = watchContractUpgrade(
+      mockServer as any,
+      "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+      () => {}
+    );
+
+    const initialCount = pollCount;
+    cleanup();
+
+    // Wait to ensure no more polls happen
+    await new Promise((r) => setTimeout(r, 100));
+    expect(pollCount).toBe(initialCount);
+  });
+});

@@ -124,28 +124,30 @@ export class StellarSplitClient {
         nativeToScVal(r.amount, { type: "i128" })
       );
 
-      return xdr.ScVal.scvMap([
-        {
-          key: nativeToScVal("creator", { type: "symbol" }),
-          val: nativeToScVal(p.creator, { type: "address" }),
-        },
-        {
-          key: nativeToScVal("recipients", { type: "symbol" }),
+      const mapEntries: xdr.ScMapEntry[] = [
+        new xdr.ScMapEntry({
+          key: nativeToScVal("creator", { type: "symbol" }) as xdr.ScVal,
+          val: nativeToScVal(p.creator, { type: "address" }) as xdr.ScVal,
+        }),
+        new xdr.ScMapEntry({
+          key: nativeToScVal("recipients", { type: "symbol" }) as xdr.ScVal,
           val: xdr.ScVal.scvVec(recipientAddresses),
-        },
-        {
-          key: nativeToScVal("amounts", { type: "symbol" }),
+        }),
+        new xdr.ScMapEntry({
+          key: nativeToScVal("amounts", { type: "symbol" }) as xdr.ScVal,
           val: xdr.ScVal.scvVec(recipientAmounts),
-        },
-        {
-          key: nativeToScVal("token", { type: "symbol" }),
-          val: nativeToScVal(p.token, { type: "address" }),
-        },
-        {
-          key: nativeToScVal("deadline", { type: "symbol" }),
-          val: nativeToScVal(p.deadline, { type: "u64" }),
-        },
-      ]);
+        }),
+        new xdr.ScMapEntry({
+          key: nativeToScVal("token", { type: "symbol" }) as xdr.ScVal,
+          val: nativeToScVal(p.token, { type: "address" }) as xdr.ScVal,
+        }),
+        new xdr.ScMapEntry({
+          key: nativeToScVal("deadline", { type: "symbol" }) as xdr.ScVal,
+          val: nativeToScVal(p.deadline, { type: "u64" }) as xdr.ScVal,
+        }),
+      ];
+
+      return xdr.ScVal.scvMap(mapEntries);
     });
 
     const operation = this.contract.call(

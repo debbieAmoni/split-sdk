@@ -11,6 +11,8 @@ export { checkRPCHealth } from "./health.js";
 
 export { getOptimisticInvoice } from "./optimistic.js";
 
+export { watchContractUpgrade } from "./upgrade.js";
+
 export {
   formatAmount,
   parseAmount,
@@ -28,4 +30,5 @@ export type {
   CreateInvoiceParams,
   PayParams,
   RPCHealth,
+  UpgradeEvent,
 } from "./types.js";
