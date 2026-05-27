@@ -23,4 +23,7 @@ export type {
   InvoiceStatus,
   CreateInvoiceParams,
   PayParams,
+  WalletAdapter,
 } from "./types.js";
+
+export { LedgerAdapter } from "./adapters/ledger.js";
