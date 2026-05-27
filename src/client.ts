@@ -25,6 +25,7 @@ import {
   runResponseInterceptors,
 } from "./interceptors.js";
 import { calculateFee } from "./fee.js";
+import { resolveToken } from "./token.js";
 import type {
   ApprovalResult,
   BatchPayment,
@@ -46,6 +47,7 @@ import type {
   SimulateCreateInvoiceResult,
   SimulatePayResult,
   WalletAdapter,
+  TokenInfo,
 } from "./types.js";
 import { subscribeToInvoice as _subscribeToInvoice } from "./stream.js";
 
@@ -742,6 +744,16 @@ export class StellarSplitClient {
    */
   async calculateFee(amount: bigint): Promise<FeeBreakdown> {
     return calculateFee(amount, this.config);
+  }
+
+  /**
+   * Resolve token metadata from a SAC contract address.
+   *
+   * @param address - Token contract address
+   * @returns Token metadata (symbol, name, decimals)
+   */
+  async resolveToken(address: string): Promise<TokenInfo> {
+    return resolveToken(address, this.config);
   }
 
   // ---------------------------------------------------------------------------

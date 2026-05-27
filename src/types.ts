@@ -223,3 +223,15 @@ export interface FeeBreakdown {
   /** Fee basis points (1 bps = 0.01%). */
   feeBps: number;
 }
+
+/** Token metadata information. */
+export interface TokenInfo {
+  /** Token contract address. */
+  address: string;
+  /** Token symbol (e.g., "USDC"). */
+  symbol: string;
+  /** Token name (e.g., "USD Coin"). */
+  name: string;
+  /** Number of decimal places. */
+  decimals: number;
+}

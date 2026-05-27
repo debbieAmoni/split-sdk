@@ -25,6 +25,8 @@ export { watchContractUpgrade } from "./upgrade.js";
 
 export { calculateFee } from "./fee.js";
 
+export { resolveToken } from "./token.js";
+
 export {
   formatAmount,
   parseAmount,
@@ -76,6 +78,7 @@ export type {
   InvoiceDiff,
   SDKHealth,
   FeeBreakdown,
+  TokenInfo,
 } from "./types.js";
 export { InvalidTransitionError } from "./types.js";
 
