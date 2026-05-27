@@ -227,3 +227,35 @@ describe("getOptimisticInvoice", () => {
     expect(optimistic).not.toBe(invoice);
   });
 });
+
+describe("batchCreateInvoices", () => {
+  it("throws when params array is empty", async () => {
+    const { StellarSplitClient } = await import("../src/client.js");
+    const client = new StellarSplitClient({
+      rpcUrl: "http://localhost:8000",
+      networkPassphrase: "Test SDF Network ; September 2015",
+      contractId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    });
+    await expect(client.batchCreateInvoices([])).rejects.toThrow(
+      "Batch size must be between 1 and 5 items"
+    );
+  });
+
+  it("throws when params array exceeds 5 items", async () => {
+    const { StellarSplitClient } = await import("../src/client.js");
+    const client = new StellarSplitClient({
+      rpcUrl: "http://localhost:8000",
+      networkPassphrase: "Test SDF Network ; September 2015",
+      contractId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    });
+    const params = Array(6).fill({
+      creator: "GABC",
+      recipients: [{ address: "GDEF", amount: 100n }],
+      token: "CUSDC",
+      deadline: 1000000,
+    });
+    await expect(client.batchCreateInvoices(params)).rejects.toThrow(
+      "Batch size must be between 1 and 5 items"
+    );
+  });
+});

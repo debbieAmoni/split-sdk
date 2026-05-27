@@ -104,6 +104,63 @@ export class StellarSplitClient {
   }
 
   /**
+   * Create multiple invoices in a single transaction.
+   *
+   * @param params - Array of invoice creation parameters (1-5 items)
+   * @returns All created invoice IDs and the transaction hash
+   */
+  async batchCreateInvoices(
+    params: CreateInvoiceParams[]
+  ): Promise<{ invoiceIds: string[]; txHash: string }> {
+    if (params.length === 0 || params.length > 5) {
+      throw new Error("Batch size must be between 1 and 5 items");
+    }
+
+    const invoiceParams = params.map((p) => {
+      const recipientAddresses = p.recipients.map((r) =>
+        nativeToScVal(r.address, { type: "address" })
+      );
+      const recipientAmounts = p.recipients.map((r) =>
+        nativeToScVal(r.amount, { type: "i128" })
+      );
+
+      return xdr.ScVal.scvMap([
+        {
+          key: nativeToScVal("creator", { type: "symbol" }),
+          val: nativeToScVal(p.creator, { type: "address" }),
+        },
+        {
+          key: nativeToScVal("recipients", { type: "symbol" }),
+          val: xdr.ScVal.scvVec(recipientAddresses),
+        },
+        {
+          key: nativeToScVal("amounts", { type: "symbol" }),
+          val: xdr.ScVal.scvVec(recipientAmounts),
+        },
+        {
+          key: nativeToScVal("token", { type: "symbol" }),
+          val: nativeToScVal(p.token, { type: "address" }),
+        },
+        {
+          key: nativeToScVal("deadline", { type: "symbol" }),
+          val: nativeToScVal(p.deadline, { type: "u64" }),
+        },
+      ]);
+    });
+
+    const operation = this.contract.call(
+      "create_batch",
+      xdr.ScVal.scvVec(invoiceParams)
+    );
+
+    const result = await this._submitTx(params[0].creator, operation);
+    const invoiceIds = (scValToNative(result.returnValue) as (string | number)[]).map(
+      (id) => id.toString()
+    );
+    return { invoiceIds, txHash: result.txHash };
+  }
+
+  /**
    * Fetch an invoice by ID.
    */
   async getInvoice(invoiceId: string): Promise<Invoice> {
