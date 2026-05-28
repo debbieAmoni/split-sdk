@@ -15,6 +15,7 @@ import {
 } from "@stellar/stellar-sdk";
 import { signTransaction } from "./wallet.js";
 import { telemetry } from "./telemetry.js";
+import { withRetry } from "./retry.js";
 import type {
   CreateInvoiceParams,
   Invoice,
@@ -34,6 +35,8 @@ export interface StellarSplitClientConfig {
   networkPassphrase: string;
   /** Deployed StellarSplit contract ID. */
   contractId: string;
+  /** Maximum retry attempts for transient pay() failures. */
+  maxRetries?: number;
   /** Optional telemetry configuration. */
   telemetry?: {
     endpoint: string;
@@ -41,7 +44,6 @@ export interface StellarSplitClientConfig {
   };
 }
 
-/** Result of a transaction submission. */
 export interface TxResult {
   txHash: string;
 }
@@ -118,7 +120,13 @@ export class StellarSplitClient {
         nativeToScVal(params.amount, { type: "i128" })
       );
 
-      const result = await this._submitTx(params.payer, operation);
+      const maxRetries = this.config.maxRetries ?? 3;
+      const result = await withRetry(
+        () => this._submitTx(params.payer, operation),
+        maxRetries,
+        1000
+      );
+
       telemetry.recordMethod("pay", true, Date.now() - startTime);
       return { txHash: result.txHash };
     } catch (error) {

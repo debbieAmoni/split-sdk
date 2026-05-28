@@ -1,20 +1,20 @@
-#17 Add invoice receipt generator
+#19 Build payment retry mechanism
 Repo Avatar
 Stellar-split/split-sdk
 Label: complexity: high
 Points: 200
 
 Description
-After an invoice is released, there is no structured way to get a payment receipt. This issue adds generateReceipt(invoiceId) that fetches the invoice and returns a typed InvoiceReceipt object with full payment breakdown, timestamps, and a unique receipt ID derived from the transaction hash.
+Network errors during pay() cause the call to fail with no recovery. This issue adds automatic retry with exponential backoff — failed pay() calls retry up to 3 times with 1s, 2s, 4s delays before throwing, handling transient RPC errors transparently.
 
 Technical Context
-Involves src/client.ts and src/types.ts. Define InvoiceReceipt = { receiptId: string; invoiceId: string; creator: string; recipients: Recipient[]; payments: Payment[]; totalAmount: bigint; releasedAt: number }. receiptId is a SHA-256 hash of invoiceId + funded + deadline.
+Involves src/client.ts and a new src/retry.ts. Define withRetry(fn: () => Promise, maxAttempts: number, baseDelayMs: number): Promise. Wrap the _submitTx call in pay() with withRetry. Only retry on network/timeout errors, not on contract logic errors.
 
 Acceptance Criteria
- generateReceipt(invoiceId: string): Promise exported
- Throws if invoice is not Released
- receiptId is deterministic for the same invoice
- InvoiceReceipt type exported from src/index.ts
- Test generates receipt for a released invoice and verifies all fields
+ pay() retries up to 3 times on network errors
+ Delays follow exponential backoff: 1s, 2s, 4s
+ Contract logic errors (e.g. DeadlinePassedError) are not retried
+ maxRetries configurable in StellarSplitClientConfig
+ Test mocks 2 failures then success and verifies final result returned
  All existing tests pass
  TypeScript strict mode — zero any types

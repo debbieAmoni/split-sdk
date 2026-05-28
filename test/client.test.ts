@@ -177,6 +177,64 @@ describe("generateReceipt", () => {
   });
 });
 
+
+describe("pay", () => {
+  it("retries transient network failures and returns the final transaction", async () => {
+    const client = new StellarSplitClient({
+      rpcUrl: "https://example.com",
+      networkPassphrase: "Test Network",
+      contractId: StrKey.encodeContract(Keypair.random().rawPublicKey()),
+    });
+
+    const submitSpy = vi.spyOn(client as any, "_submitTx")
+      .mockRejectedValueOnce(new Error("network timeout"))
+      .mockRejectedValueOnce(new Error("failed to fetch"))
+      .mockResolvedValueOnce({ txHash: "tx-success", returnValue: {} } as any);
+
+    vi.useFakeTimers();
+    const payer = Keypair.random().publicKey();
+    const payPromise = client.pay({
+      payer,
+      invoiceId: "123",
+      amount: 10_000_000n,
+    });
+
+    try {
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(2000);
+      const result = await payPromise;
+      expect(result.txHash).toBe("tx-success");
+      expect(submitSpy).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not retry contract logic failures", async () => {
+    const client = new StellarSplitClient({
+      rpcUrl: "https://example.com",
+      networkPassphrase: "Test Network",
+      contractId: StrKey.encodeContract(Keypair.random().rawPublicKey()),
+      maxRetries: 5,
+    });
+
+    const submitSpy = vi.spyOn(client as any, "_submitTx").mockRejectedValue(
+      new Error("DeadlinePassedError")
+    );
+
+    const payer = Keypair.random().publicKey();
+    await expect(
+      client.pay({
+        payer,
+        invoiceId: "123",
+        amount: 10_000_000n,
+      })
+    ).rejects.toThrow("DeadlinePassedError");
+
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("pollUSDCBalance", () => {
   it("throws error if poller not initialized", () => {
     const callback = (balance: bigint) => {
