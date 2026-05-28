@@ -22,6 +22,7 @@ export { telemetry } from "./telemetry.js";
 
 export type {
   Invoice,
+  InvoiceReceipt,
   Payment,
   Recipient,
   InvoiceStatus,

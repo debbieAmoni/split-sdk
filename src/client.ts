@@ -18,6 +18,7 @@ import { telemetry } from "./telemetry.js";
 import type {
   CreateInvoiceParams,
   Invoice,
+  InvoiceReceipt,
   InvoiceStatus,
   Payment,
   PayParams,
@@ -177,6 +178,40 @@ export class StellarSplitClient {
       return invoice.payments;
     } catch (error) {
       telemetry.recordMethod("getPayments", false, Date.now() - startTime);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate a typed receipt for a released invoice.
+   */
+  async generateReceipt(invoiceId: string): Promise<InvoiceReceipt> {
+    const startTime = Date.now();
+    try {
+      const invoice = await this.getInvoice(invoiceId);
+      if (invoice.status !== "Released") {
+        throw new Error("Invoice must be Released to generate a receipt");
+      }
+
+      const receiptId = await this._buildReceiptId(invoice);
+      const totalAmount = invoice.payments.reduce(
+        (sum, payment) => sum + payment.amount,
+        0n
+      );
+      const receipt: InvoiceReceipt = {
+        receiptId,
+        invoiceId: invoice.id,
+        creator: invoice.creator,
+        recipients: invoice.recipients,
+        payments: invoice.payments,
+        totalAmount,
+        releasedAt: Date.now(),
+      };
+
+      telemetry.recordMethod("generateReceipt", true, Date.now() - startTime);
+      return receipt;
+    } catch (error) {
+      telemetry.recordMethod("generateReceipt", false, Date.now() - startTime);
       throw error;
     }
   }
@@ -451,6 +486,15 @@ export class StellarSplitClient {
       (getResult as SorobanRpc.Api.GetSuccessfulTransactionResponse).returnValue ??
       xdr.ScVal.scvVoid();
     return { txHash, returnValue };
+  }
+
+  private async _buildReceiptId(invoice: Invoice): Promise<string> {
+    const payload = `${invoice.id}${invoice.funded}${invoice.deadline}`;
+    const data = new TextEncoder().encode(payload);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
   }
 
   /** Parse a raw contract map into a typed Invoice. */

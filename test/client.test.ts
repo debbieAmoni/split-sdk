@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   formatAmount,
   parseAmount,
@@ -9,6 +9,7 @@ import {
 } from "../src/utils.js";
 import { pollUSDCBalance, initPoller } from "../src/poller.js";
 import { telemetry } from "../src/telemetry.js";
+import { StellarSplitClient } from "../src/client.js";
 
 describe("formatAmount", () => {
   it("formats whole units", () => {
