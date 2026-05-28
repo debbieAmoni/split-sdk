@@ -4,6 +4,8 @@
 
 export { StellarSplitClient } from "./client.js";
 export type { StellarSplitClientConfig, NetworkConfig, TxResult } from "./client.js";
+// Dispute management methods (for clarity, these are instance methods on StellarSplitClient)
+// Types exported below
 
 export { Deduplicator } from "./dedup.js";
 

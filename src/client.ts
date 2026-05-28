@@ -1,3 +1,73 @@
+import type { DisputeResult, ArbiterVote } from "./types.js";
+  /**
+   * Dispute an invoice by ID.
+   * @param invoiceId - The ID of the invoice to dispute.
+   * @returns The dispute ID and transaction hash.
+   */
+  async disputeInvoice(invoiceId: string): Promise<DisputeResult> {
+    const startTime = Date.now();
+    try {
+      const operation = this.contract.call(
+        "dispute_invoice",
+        nativeToScVal(BigInt(invoiceId), { type: "u64" })
+      );
+      // Assuming the creator is the one calling dispute
+      // You may want to pass the creator as a parameter if needed
+      const result = await this._submitTx(this.config.contractId, operation);
+      const disputeId = scValToNative(result.returnValue).toString();
+      telemetry.recordMethod("disputeInvoice", true, Date.now() - startTime);
+      return { disputeId, txHash: result.txHash };
+    } catch (error) {
+      telemetry.recordMethod("disputeInvoice", false, Date.now() - startTime);
+      throw error;
+    }
+  }
+
+  /**
+   * Submit an arbiter's vote for a dispute.
+   * @param vote - The arbiter vote parameters.
+   * @returns The dispute ID and transaction hash.
+   */
+  async submitArbiterVote(vote: ArbiterVote): Promise<DisputeResult> {
+    const startTime = Date.now();
+    try {
+      const operation = this.contract.call(
+        "submit_arbiter_vote",
+        nativeToScVal(BigInt(vote.invoiceId), { type: "u64" }),
+        nativeToScVal(vote.arbiter, { type: "address" }),
+        nativeToScVal(vote.approve, { type: "bool" })
+      );
+      const result = await this._submitTx(vote.arbiter, operation);
+      const disputeId = scValToNative(result.returnValue).toString();
+      telemetry.recordMethod("submitArbiterVote", true, Date.now() - startTime);
+      return { disputeId, txHash: result.txHash };
+    } catch (error) {
+      telemetry.recordMethod("submitArbiterVote", false, Date.now() - startTime);
+      throw error;
+    }
+  }
+
+  /**
+   * Resolve a dispute for an invoice.
+   * @param invoiceId - The ID of the invoice to resolve dispute for.
+   * @returns The dispute ID and transaction hash.
+   */
+  async resolveDispute(invoiceId: string): Promise<DisputeResult> {
+    const startTime = Date.now();
+    try {
+      const operation = this.contract.call(
+        "resolve_dispute",
+        nativeToScVal(BigInt(invoiceId), { type: "u64" })
+      );
+      const result = await this._submitTx(this.config.contractId, operation);
+      const disputeId = scValToNative(result.returnValue).toString();
+      telemetry.recordMethod("resolveDispute", true, Date.now() - startTime);
+      return { disputeId, txHash: result.txHash };
+    } catch (error) {
+      telemetry.recordMethod("resolveDispute", false, Date.now() - startTime);
+      throw error;
+    }
+  }
 /**
  * StellarSplitClient — TypeScript client for the StellarSplit Soroban contract.
  *
@@ -160,6 +230,41 @@ export class StellarSplitClient {
       return { invoiceId, txHash: result.txHash };
     } catch (error) {
       telemetry.recordMethod("createInvoice", false, Date.now() - startTime);
+      throw error;
+    }
+  }
+
+  /**
+   * Clone an existing invoice with a new deadline.
+   *
+   * @param sourceId    - ID of the invoice to clone.
+   * @param creator     - Address of the creator (must sign).
+   * @param newDeadline - Unix timestamp for the new invoice's deadline.
+   * @returns The new invoice ID and transaction hash.
+   * @throws {InvoiceNotFoundError} If the source invoice does not exist.
+   */
+  async cloneInvoice(
+    sourceId: string,
+    creator: string,
+    newDeadline: number
+  ): Promise<{ invoiceId: string; txHash: string }> {
+    const startTime = Date.now();
+    try {
+      const operation = this.contract.call(
+        "clone_invoice",
+        nativeToScVal(BigInt(sourceId), { type: "u64" }),
+        nativeToScVal(newDeadline, { type: "u64" })
+      );
+
+      const result = await this._submitTx(creator, operation);
+      const invoiceId = scValToNative(result.returnValue).toString();
+      telemetry.recordMethod("cloneInvoice", true, Date.now() - startTime);
+      return { invoiceId, txHash: result.txHash };
+    } catch (error) {
+      telemetry.recordMethod("cloneInvoice", false, Date.now() - startTime);
+      if (error instanceof Error && error.message.includes("not found")) {
+        throw new InvoiceNotFoundError(sourceId);
+      }
       throw error;
     }
   }

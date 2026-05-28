@@ -1,3 +1,15 @@
+/** Result of a dispute-related transaction. */
+export interface DisputeResult {
+  disputeId: string;
+  txHash: string;
+}
+
+/** Parameters for an arbiter's vote on a dispute. */
+export interface ArbiterVote {
+  invoiceId: string;
+  arbiter: string;
+  approve: boolean;
+}
 /** Lifecycle status of an invoice. */
 export type InvoiceStatus = "Pending" | "Released" | "Refunded";
 
