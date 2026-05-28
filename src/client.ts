@@ -41,6 +41,8 @@ export interface StellarSplitClientConfig {
     endpoint: string;
     optOut?: boolean;
   };
+  /** Fee multiplier applied when a transaction is stuck (default: 2). */
+  feeBumpMultiplier?: number;
 }
 
 /** Result of a transaction submission. */
@@ -566,6 +568,50 @@ export class StellarSplitClient {
       await new Promise((r) => setTimeout(r, 1500));
       getResult = await this.server.getTransaction(txHash);
       attempts++;
+    }
+
+    // If still not confirmed, submit a fee-bump transaction with a higher fee
+    if (getResult.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND) {
+      const multiplier = this.config.feeBumpMultiplier ?? 2;
+      const innerTx = TransactionBuilder.fromXDR(
+        signedXdr,
+        this.config.networkPassphrase
+      ) as Parameters<typeof TransactionBuilder.buildFeeBumpTransaction>[2];
+      const bumpedFee = String(Math.ceil(Number(BASE_FEE) * multiplier));
+      const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
+        sourceAddress,
+        bumpedFee,
+        innerTx,
+        this.config.networkPassphrase
+      );
+      const signedBumpXdr = await signTransaction(
+        feeBumpTx.toXDR(),
+        this.config.networkPassphrase
+      );
+      const bumpSendResult = await this.server.sendTransaction(
+        TransactionBuilder.fromXDR(signedBumpXdr, this.config.networkPassphrase)
+      );
+      if (bumpSendResult.status === "ERROR") {
+        throw new Error(`Fee-bump transaction failed: ${JSON.stringify(bumpSendResult.errorResult)}`);
+      }
+      const bumpHash = bumpSendResult.hash;
+      let bumpResult = await this.server.getTransaction(bumpHash);
+      let bumpAttempts = 0;
+      while (
+        bumpResult.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND &&
+        bumpAttempts < 20
+      ) {
+        await new Promise((r) => setTimeout(r, 1500));
+        bumpResult = await this.server.getTransaction(bumpHash);
+        bumpAttempts++;
+      }
+      if (bumpResult.status !== SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
+        throw new Error(`Fee-bump transaction not confirmed: ${bumpResult.status}`);
+      }
+      const bumpReturnValue =
+        (bumpResult as SorobanRpc.Api.GetSuccessfulTransactionResponse).returnValue ??
+        xdr.ScVal.scvVoid();
+      return { txHash: bumpHash, returnValue: bumpReturnValue };
     }
 
     if (getResult.status !== SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
