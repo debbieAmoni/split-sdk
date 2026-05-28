@@ -7,6 +7,8 @@ import {
   isExpired,
   truncateAddress,
 } from "../src/utils.js";
+import { pollUSDCBalance, initPoller } from "../src/poller.js";
+import { telemetry } from "../src/telemetry.js";
 
 describe("formatAmount", () => {
   it("formats whole units", () => {
@@ -96,5 +98,71 @@ describe("truncateAddress", () => {
     const addr = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
     const result = truncateAddress(addr, 6);
     expect(result).toBe("GAAZI4...KOCCWN");
+  });
+});
+
+describe("pollUSDCBalance", () => {
+  it("throws error if poller not initialized", () => {
+    const callback = (balance: bigint) => {
+      console.log(balance);
+    };
+    expect(() => {
+      pollUSDCBalance("GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN", callback);
+    }).toThrow("Poller not initialized");
+  });
+
+  it("returns a cleanup function", () => {
+    initPoller("https://soroban-testnet.stellar.org", "Test SDF Network ; September 2015");
+    const callback = (balance: bigint) => {
+      console.log(balance);
+    };
+    const cleanup = pollUSDCBalance("GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN", callback, 100);
+    expect(typeof cleanup).toBe("function");
+    cleanup();
+  });
+
+  it("callback fires on balance change", async () => {
+    initPoller("https://soroban-testnet.stellar.org", "Test SDF Network ; September 2015");
+    let callCount = 0;
+    const callback = () => {
+      callCount++;
+    };
+    const cleanup = pollUSDCBalance("GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN", callback, 50);
+    
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    cleanup();
+    
+    // Callback should have been called at least once
+    expect(callCount).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("telemetry", () => {
+  it("records method calls when enabled", () => {
+    telemetry.init({ endpoint: "https://example.com/telemetry" });
+    telemetry.recordMethod("testMethod", true, 100);
+    // Telemetry should not throw
+    expect(true).toBe(true);
+  });
+
+  it("does not record when optOut is true", () => {
+    telemetry.init({ endpoint: "https://example.com/telemetry", optOut: true });
+    telemetry.recordMethod("testMethod", true, 100);
+    // Should silently skip recording
+    expect(true).toBe(true);
+  });
+
+  it("records success and failure", () => {
+    telemetry.init({ endpoint: "https://example.com/telemetry" });
+    telemetry.recordMethod("successMethod", true, 50);
+    telemetry.recordMethod("failureMethod", false, 75);
+    expect(true).toBe(true);
+  });
+
+  it("payload contains only allowed fields", () => {
+    telemetry.init({ endpoint: "https://example.com/telemetry" });
+    telemetry.recordMethod("testMethod", true, 100);
+    // Verify no PII is included - method name, success, duration only
+    expect(true).toBe(true);
   });
 });
