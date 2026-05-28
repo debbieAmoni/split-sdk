@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   formatAmount,
   parseAmount,
@@ -9,6 +10,8 @@ import {
 } from "../src/utils.js";
 import { pollUSDCBalance, initPoller } from "../src/poller.js";
 import { telemetry } from "../src/telemetry.js";
+import { StellarSplitClient } from "../src/client.js";
+import type { PaginatedResult } from "../src/types.js";
 
 describe("formatAmount", () => {
   it("formats whole units", () => {
@@ -164,5 +167,78 @@ describe("telemetry", () => {
     telemetry.recordMethod("testMethod", true, 100);
     // Verify no PII is included - method name, success, duration only
     expect(true).toBe(true);
+  });
+});
+
+describe("getInvoicesByRecipient", () => {
+  const RECIPIENT = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
+  const ALL_IDS = ["10", "20", "30", "40", "50", "60"];
+
+  function makeClient(): StellarSplitClient {
+    const client = new StellarSplitClient({
+      rpcUrl: "https://soroban-testnet.stellar.org",
+      networkPassphrase: "Test SDF Network ; September 2015",
+      contractId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+    });
+
+    vi.spyOn(client, "getInvoicesByRecipient").mockImplementation(
+      async (_recipient: string, options = {}) => {
+        const limit = options.limit ?? 20;
+        const startIndex = options.cursor ? ALL_IDS.indexOf(options.cursor) + 1 : 0;
+        const page = ALL_IDS.slice(startIndex, startIndex + limit);
+        const nextCursor = startIndex + limit < ALL_IDS.length ? page[page.length - 1] : null;
+        return { items: page, nextCursor, total: ALL_IDS.length } satisfies PaginatedResult<string>;
+      }
+    );
+
+    return client;
+  }
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns first page with default limit", async () => {
+    const client = makeClient();
+    const result = await client.getInvoicesByRecipient(RECIPIENT);
+    expect(result.items).toEqual(ALL_IDS);
+    expect(result.total).toBe(6);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it("returns correct page for given limit", async () => {
+    const client = makeClient();
+    const result = await client.getInvoicesByRecipient(RECIPIENT, { limit: 2 });
+    expect(result.items).toEqual(["10", "20"]);
+    expect(result.nextCursor).toBe("20");
+  });
+
+  it("returns correct page for given cursor and limit", async () => {
+    const client = makeClient();
+    const result = await client.getInvoicesByRecipient(RECIPIENT, { cursor: "20", limit: 2 });
+    expect(result.items).toEqual(["30", "40"]);
+    expect(result.nextCursor).toBe("40");
+  });
+
+  it("returns null nextCursor on last page", async () => {
+    const client = makeClient();
+    const result = await client.getInvoicesByRecipient(RECIPIENT, { cursor: "40", limit: 2 });
+    expect(result.items).toEqual(["50", "60"]);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it("paginates correctly across multiple pages", async () => {
+    const client = makeClient();
+    const page1 = await client.getInvoicesByRecipient(RECIPIENT, { limit: 2 });
+    expect(page1.items).toEqual(["10", "20"]);
+    expect(page1.nextCursor).toBe("20");
+
+    const page2 = await client.getInvoicesByRecipient(RECIPIENT, { cursor: page1.nextCursor!, limit: 2 });
+    expect(page2.items).toEqual(["30", "40"]);
+    expect(page2.nextCursor).toBe("40");
+
+    const page3 = await client.getInvoicesByRecipient(RECIPIENT, { cursor: page2.nextCursor!, limit: 2 });
+    expect(page3.items).toEqual(["50", "60"]);
+    expect(page3.nextCursor).toBeNull();
   });
 });

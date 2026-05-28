@@ -15,15 +15,19 @@ import {
 } from "@stellar/stellar-sdk";
 import { signTransaction } from "./wallet.js";
 import { telemetry } from "./telemetry.js";
+import { checkRPCHealth } from "./health.js";
 import type {
   CreateInvoiceParams,
   Invoice,
   InvoiceGroup,
   InvoiceStatus,
+  PaginatedResult,
+  PaginationOptions,
   Payment,
   PayParams,
   Recipient,
   InvoiceTemplate,
+  RPCHealth,
 } from "./types.js";
 
 /** Configuration for StellarSplitClient. */
@@ -475,6 +479,55 @@ export class StellarSplitClient {
     return invoices.map((inv: Record<string, unknown>, idx: number) =>
       this._parseInvoice(idx.toString(), inv)
     );
+  }
+
+  /**
+   * Get invoices where an address is a recipient, with cursor-based pagination.
+   *
+   * @param recipient - Stellar address of the recipient.
+   * @param options   - Optional pagination options (cursor, limit). Default page size is 20.
+   * @returns A page of invoice IDs with a nextCursor for subsequent pages.
+   */
+  async getInvoicesByRecipient(
+    recipient: string,
+    options: PaginationOptions = {}
+  ): Promise<PaginatedResult<string>> {
+    const limit = options.limit ?? 20;
+
+    const operation = this.contract.call(
+      "get_invoices_by_recipient",
+      nativeToScVal(recipient, { type: "address" })
+    );
+
+    const account = await this.server.getAccount(this.config.contractId).catch(() => null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sourceAccount = account ?? ({ accountId: () => this.config.contractId, sequenceNumber: () => "0", incrementSequenceNumber: () => {} } as any);
+
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: BASE_FEE,
+      networkPassphrase: this.config.networkPassphrase,
+    })
+      .addOperation(operation)
+      .setTimeout(30)
+      .build();
+
+    const simResult = await this.server.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationError(simResult)) {
+      throw new Error(`Simulation failed: ${simResult.error}`);
+    }
+
+    const returnVal = (simResult as SorobanRpc.Api.SimulateTransactionSuccessResponse).result?.retval;
+    if (!returnVal) throw new Error("No return value from get_invoices_by_recipient");
+
+    const raw = scValToNative(returnVal);
+    const allIds: string[] = Array.isArray(raw) ? raw.map((id: unknown) => String(id)) : [];
+
+    const total = allIds.length;
+    const startIndex = options.cursor ? allIds.indexOf(options.cursor) + 1 : 0;
+    const page = allIds.slice(startIndex, startIndex + limit);
+    const nextCursor = startIndex + limit < total ? page[page.length - 1] : null;
+
+    return { items: page, nextCursor, total };
   }
 
   /**

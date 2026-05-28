@@ -40,6 +40,8 @@ export type {
   CreateInvoiceParams,
   PayParams,
   InvoiceTemplate,
+  PaginatedResult,
+  PaginationOptions,
 } from "./types.js";
 
 export { LedgerAdapter } from "./adapters/ledger.js";
