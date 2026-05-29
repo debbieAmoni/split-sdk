@@ -1,6 +1,10 @@
 /**
- * @stellar-split/sdk — public API
+ * @stellar-split/sdk — public API (core exports)
  */
+
+import type { Invoice } from "./types.js";
+import type { StellarSplitClientConfig } from "./client.js";
+import type { ExportFormat } from "./export.js";
 
 export { StellarSplitClient } from "./client.js";
 export type { StellarSplitClientConfig, NetworkConfig, TxResult } from "./client.js";
@@ -8,8 +12,6 @@ export type { StellarSplitClientConfig, NetworkConfig, TxResult } from "./client
 export { Deduplicator } from "./dedup.js";
 
 export { TxQueue } from "./queue.js";
-
-export { exportInvoice } from "./export.js";
 
 export { replayEvents } from "./events.js";
 
@@ -26,8 +28,6 @@ export { calculateFee } from "./fee.js";
 export { resolveToken } from "./token.js";
 
 export { watchExpiry } from "./watcher.js";
-
-export { generatePaymentProof } from "./proof.js";
 
 export { StellarSplitTxBuilder } from "./txBuilder.js";
 
@@ -84,7 +84,6 @@ export {
 
 export { SimpleCache } from "./cache.js";
 
-
 export type {
   Invoice,
   InvoiceReceipt,
@@ -108,7 +107,32 @@ export type {
   ExpiryCallback,
   PaymentProof,
 } from "./types.js";
-} from "./types.js";
-export type { ComplianceReport } from "./compliance.js";
 export { InvalidTransitionError } from "./types.js";
+
+// ---------------------------------------------------------------------------
+// Lazy factories for heavy modules
+// ---------------------------------------------------------------------------
+
+export async function getExportModule(): Promise<typeof import("./export.js")> {
+  return await import("./export.js");
+}
+
+export async function exportInvoice(invoice: Invoice, format: ExportFormat): Promise<string> {
+  const m = await getExportModule();
+  return m.exportInvoice(invoice, format);
+}
+
+export async function getProofModule(): Promise<typeof import("./proof.js")> {
+  return await import("./proof.js");
+}
+
+export async function generatePaymentProof(
+  txHash: string,
+  config: StellarSplitClientConfig
+): Promise<import("./proof.js").PaymentProof> {
+  const m = await getProofModule();
+  return m.generatePaymentProof(txHash, config);
+}
+
+export type { ComplianceReport } from "./compliance.js";
 
