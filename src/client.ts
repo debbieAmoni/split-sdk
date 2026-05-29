@@ -24,10 +24,9 @@ import {
   runRequestInterceptors,
   runResponseInterceptors,
 } from "./interceptors.js";
-import { SimpleCache } from "./cache.js";
-import { parseSorobanError } from "./errors.js";
-import { estimateFee as _estimateFee } from "./fee.js";
-import { InvoiceNotFoundError } from "./types.js";
+import { calculateFee } from "./fee.js";
+import { resolveToken } from "./token.js";
+import { generatePaymentProof } from "./proof.js";
 import type {
   ApprovalResult,
   BatchPayment,
@@ -35,7 +34,7 @@ import type {
   BatchPayment,
   CreateInvoiceParams,
   DisputeResult,
-  FeeEstimate,
+  FeeBreakdown,
   Invoice,
   InvoiceEventCallbacks,
   InvoiceGroup,
@@ -45,6 +44,7 @@ import type {
   PaginationOptions,
   Payment,
   PayParams,
+  PaymentProof,
   Recipient,
   SimulateCreateInvoiceResult,
   SimulatePayResult,
@@ -53,6 +53,7 @@ import type {
   SimulateCreateInvoiceResult,
   SimulatePayResult,
   WalletAdapter,
+  TokenInfo,
 } from "./types.js";
 import { subscribeToInvoice as _subscribeToInvoice } from "./stream.js";
 
@@ -778,6 +779,36 @@ export class StellarSplitClient {
     return { txHash: result.txHash };
   }
 
+  /**
+   * Calculate the protocol fee for a given amount.
+   *
+   * @param amount - Gross amount in stroops
+   * @returns Fee breakdown with gross, fee, net, and feeBps
+   */
+  async calculateFee(amount: bigint): Promise<FeeBreakdown> {
+    return calculateFee(amount, this.config);
+  }
+
+  /**
+   * Resolve token metadata from a SAC contract address.
+   *
+   * @param address - Token contract address
+   * @returns Token metadata (symbol, name, decimals)
+   */
+  async resolveToken(address: string): Promise<TokenInfo> {
+    return resolveToken(address, this.config);
+  }
+
+  /**
+   * Generate a cryptographic proof of payment.
+   *
+   * @param txHash - Transaction hash
+   * @returns Payment proof with deterministic SHA-256 hash
+   */
+  async generatePaymentProof(txHash: string): Promise<PaymentProof> {
+    return generatePaymentProof(txHash, this.config);
+  }
+
   // ---------------------------------------------------------------------------
   // Issue #1 — batchPay
   // ---------------------------------------------------------------------------
@@ -1378,75 +1409,6 @@ export class StellarSplitClient {
       payments,
       recurring: raw.recurring as boolean | undefined,
     };
-  }
-  /**
-   * Dispute an invoice by ID.
-   * @param invoiceId - The ID of the invoice to dispute.
-   * @returns The dispute ID and transaction hash.
-   */
-  async disputeInvoice(invoiceId: string): Promise<DisputeResult> {
-    const startTime = Date.now();
-    try {
-      const operation = this.contract.call(
-        "dispute_invoice",
-        nativeToScVal(BigInt(invoiceId), { type: "u64" })
-      );
-      // Assuming the creator is the one calling dispute
-      // You may want to pass the creator as a parameter if needed
-      const result = await this._submitTx(this.config.contractId, operation);
-      const disputeId = scValToNative(result.returnValue).toString();
-      telemetry.recordMethod("disputeInvoice", true, Date.now() - startTime);
-      return { disputeId, txHash: result.txHash };
-    } catch (error) {
-      telemetry.recordMethod("disputeInvoice", false, Date.now() - startTime);
-      throw error;
-    }
-  }
-
-  /**
-   * Submit an arbiter's vote for a dispute.
-   * @param vote - The arbiter vote parameters.
-   * @returns The dispute ID and transaction hash.
-   */
-  async submitArbiterVote(vote: ArbiterVote): Promise<DisputeResult> {
-    const startTime = Date.now();
-    try {
-      const operation = this.contract.call(
-        "submit_arbiter_vote",
-        nativeToScVal(BigInt(vote.invoiceId), { type: "u64" }),
-        nativeToScVal(vote.arbiter, { type: "address" }),
-        nativeToScVal(vote.approve, { type: "bool" })
-      );
-      const result = await this._submitTx(vote.arbiter, operation);
-      const disputeId = scValToNative(result.returnValue).toString();
-      telemetry.recordMethod("submitArbiterVote", true, Date.now() - startTime);
-      return { disputeId, txHash: result.txHash };
-    } catch (error) {
-      telemetry.recordMethod("submitArbiterVote", false, Date.now() - startTime);
-      throw error;
-    }
-  }
-
-  /**
-   * Resolve a dispute for an invoice.
-   * @param invoiceId - The ID of the invoice to resolve dispute for.
-   * @returns The dispute ID and transaction hash.
-   */
-  async resolveDispute(invoiceId: string): Promise<DisputeResult> {
-    const startTime = Date.now();
-    try {
-      const operation = this.contract.call(
-        "resolve_dispute",
-        nativeToScVal(BigInt(invoiceId), { type: "u64" })
-      );
-      const result = await this._submitTx(this.config.contractId, operation);
-      const disputeId = scValToNative(result.returnValue).toString();
-      telemetry.recordMethod("resolveDispute", true, Date.now() - startTime);
-      return { disputeId, txHash: result.txHash };
-    } catch (error) {
-      telemetry.recordMethod("resolveDispute", false, Date.now() - startTime);
-      throw error;
-    }
   }
 
 }
