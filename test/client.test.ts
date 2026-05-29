@@ -10,6 +10,7 @@ import {
 import { pollUSDCBalance, initPoller } from "../src/poller.js";
 import { telemetry } from "../src/telemetry.js";
 import { StellarSplitClient } from "../src/client.js";
+import { Deduplicator } from "../src/dedup.js";
 import type { PaginatedResult } from "../src/types.js";
 
 describe("formatAmount", () => {
@@ -561,7 +562,8 @@ describe("simulatePay", () => {
     await expect(
       client.simulatePay({ payer: PAYER_ADDR, invoiceId: "1", amount: 1000n })
     ).rejects.toThrow("Simulation error");
-import { Deduplicator } from "../src/dedup.js";
+  });
+});
 
 describe("Deduplicator", () => {
   it("returns the same promise for concurrent calls with the same key", () => {
