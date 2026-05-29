@@ -223,21 +223,10 @@ export interface SimulatePayResult {
   fee: string;
 }
 
-/** Snapshot of the SDK's current memory footprint. */
-export interface MemoryReport {
-  cacheEntries: number;
-  listenerCount: number;
-  estimatedKB: number;
-  warnings: string[];
-}
-
-/** Strategy for resolving conflicts between local and remote invoice states. */
-export type ConflictStrategy = "remote-wins" | "local-wins" | "latest-ledger";
-
-/** Relationships associated with a given invoice. */
-export interface InvoiceRelationships {
-  invoiceId: string;
-  clones: string[];
-  groupId: string | null;
-  prerequisites: string[];
+/** Fee estimate returned by estimateFee(). */
+export interface FeeEstimate {
+  /** Estimated transaction fee in stroops. */
+  fee: bigint;
+  /** Network congestion level derived from recent fee statistics. */
+  congestion: "low" | "medium" | "high";
 }
