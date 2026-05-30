@@ -221,3 +221,10 @@ export interface SimulatePayResult {
   /** Estimated fee in stroops. */
   fee: string;
 }
+
+/** Result of SDK/contract version negotiation. */
+export interface VersionInfo {
+  contractVersion: string;
+  sdkVersion: string;
+  compatible: boolean;
+}

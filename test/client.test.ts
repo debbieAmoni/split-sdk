@@ -561,6 +561,9 @@ describe("simulatePay", () => {
     await expect(
       client.simulatePay({ payer: PAYER_ADDR, invoiceId: "1", amount: 1000n })
     ).rejects.toThrow("Simulation error");
+  });
+});
+
 import { Deduplicator } from "../src/dedup.js";
 
 describe("Deduplicator", () => {
